@@ -14,7 +14,7 @@ type PartnerEntry<Id extends string = string> = {
   tileBg: string;
   imgStyle: CSSProperties;
   /** Translation key of a running promo badge; omit when the partner has none. */
-  promo?: "partnersPromoMarket369" | "partnersPromoZooproxy" | "partnersPromoLoopway";
+  promo?: "partnersPromoMarket369" | "partnersPromoZooproxy" | "partnersPromoLoopway" | "partnersPromoZikcards" | "partnersPromoPsbproxy";
 };
 
 // 369 Links Market leads the wall while their top-up bonus promo runs (user's call,
@@ -150,6 +150,40 @@ const PARTNERS = [
     tileBg: "#ffffff",
     imgStyle: { maxWidth: "84px", maxHeight: "21px" } as CSSProperties,
     promo: "partnersPromoLoopway",
+  },
+  {
+    id: "Zikcards",
+    name: "ZikCards",
+    href: "https://zikcards.com",
+    logo: "/partners/zikcards-logo.png",
+    tileBg: "#ffffff",
+    imgStyle: { maxWidth: "84px", maxHeight: "19px" } as CSSProperties,
+    promo: "partnersPromoZikcards",
+  },
+  {
+    id: "Psbproxy",
+    name: "PSB Proxy",
+    href: "https://psbproxy.io",
+    logo: "/partners/psb-logo.png",
+    tileBg: "#ffffff",
+    imgStyle: { maxHeight: "32px" } as CSSProperties,
+    promo: "partnersPromoPsbproxy",
+  },
+  {
+    id: "Psbhosting",
+    name: "PSB Hosting",
+    href: "https://psb.hosting",
+    logo: "/partners/psb-logo.png",
+    tileBg: "#ffffff",
+    imgStyle: { maxHeight: "32px" } as CSSProperties,
+  },
+  {
+    id: "Rolaproxy",
+    name: "Rolaproxy",
+    href: "https://www.rolaproxy.com?lj=03&pt=opengsc&rop=wangym",
+    logo: "/partners/rolaproxy-logo.png",
+    tileBg: "#ffffff",
+    imgStyle: { maxHeight: "32px" } as CSSProperties,
   },
 ] as const satisfies readonly PartnerEntry[];
 

@@ -7,7 +7,7 @@
 // The token APIs live at /api/ext/token (session-guarded, manageSecrets).
 
 import { useEffect, useState } from "react";
-import { Check, Copy, Loader2, Puzzle, RefreshCw, Trash2 } from "lucide-react";
+import { Check, Copy, Download, ExternalLink, Loader2, Puzzle, RefreshCw, Trash2 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
 
 const label: React.CSSProperties = { fontSize: "13px", color: "var(--color-text-primary)", fontWeight: 500 };
@@ -26,9 +26,16 @@ const btnPrimary: React.CSSProperties = {
   ...btn, border: "none", background: "var(--color-accent-blue)", color: "#fff",
 };
 
+// Where the extension's source lives on GitHub (also the fallback when a trimmed deployment
+// has no extension/ folder for /api/ext/download to zip).
+const EXT_GITHUB_URL = "https://github.com/fenjo26/OpenGSC/tree/main/extension";
+
 export default function ExtensionTokenCard() {
   const { t } = useLanguage();
-  const [token, setToken] = useState<string | null>(null);
+  // Only the hashed form is stored, so the server returns a display prefix; the full token exists
+  // in this component only right after it was minted, and is gone on the next page load.
+  const [display, setDisplay] = useState<string | null>(null);
+  const [fresh, setFresh] = useState<string | null>(null);
   const [allowedIds, setAllowedIds] = useState("");
   const [notMigrated, setNotMigrated] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -44,7 +51,7 @@ export default function ExtensionTokenCard() {
       .then(d => {
         if (d.notMigrated) setNotMigrated(true);
         else {
-          setToken(d.token ?? null);
+          setDisplay(d.display ?? null);
           setAllowedIds(String(d.allowedIds ?? ""));
         }
       })
@@ -66,7 +73,8 @@ export default function ExtensionTokenCard() {
       const res = await fetch("/api/ext/token", { method: "POST" });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "server_error");
-      setToken(d.token);
+      setFresh(d.token ?? null);
+      setDisplay(d.display ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "network");
     } finally {
@@ -78,7 +86,8 @@ export default function ExtensionTokenCard() {
     setBusy(true); setError(null);
     try {
       await fetch("/api/ext/token", { method: "DELETE" });
-      setToken(null);
+      setFresh(null);
+      setDisplay(null);
     } catch {
       setError("network");
     } finally {
@@ -108,9 +117,9 @@ export default function ExtensionTokenCard() {
   };
 
   const copyToken = async () => {
-    if (!token) return;
+    if (!fresh) return;
     try {
-      await navigator.clipboard.writeText(token);
+      await navigator.clipboard.writeText(fresh);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch { /* clipboard denied — the token is selectable text anyway */ }
@@ -125,23 +134,41 @@ export default function ExtensionTokenCard() {
       </div>
       <div style={hint}>{t("extHint")}</div>
 
+      {/* ── install: download this instance's own build + the steps ──────────── */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px", padding: "10px 12px", borderRadius: "10px", background: "var(--color-bg-secondary)" }}>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+          <a href="/api/ext/download" download style={{ ...btnPrimary, textDecoration: "none" }}>
+            <Download size={14} /> {t("extDownload")}
+          </a>
+          <a href={EXT_GITHUB_URL} target="_blank" rel="noopener noreferrer" style={{ ...btn, textDecoration: "none" }}>
+            <ExternalLink size={13} /> {t("extGithub")}
+          </a>
+        </div>
+        <div style={{ ...hint, whiteSpace: "pre-line", lineHeight: 1.6 }}>{t("extHowToSteps")}</div>
+      </div>
+
       {/* ── token ─────────────────────────────────────────────────────────────── */}
       <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
         <span style={label}>{t("extToken")}</span>
         {loading ? (
           <div style={{ ...hint, display: "flex", alignItems: "center", gap: "6px" }}><Loader2 size={12} className="spin" /> …</div>
-        ) : token ? (
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <code style={{ ...input, flex: 1, overflowX: "auto", whiteSpace: "nowrap" }}>{token}</code>
-            <button style={btn} onClick={copyToken} title={t("mcpCopy")} aria-label={t("mcpCopy")}>
-              {copied ? <Check size={13} color="var(--color-success)" /> : <Copy size={13} />}
-            </button>
-          </div>
+        ) : fresh || display ? (
+          <>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <code style={{ ...input, flex: 1, overflowX: "auto", whiteSpace: "nowrap" }}>{fresh ?? display}</code>
+              {fresh && (
+                <button style={btn} onClick={copyToken} title={t("mcpCopy")} aria-label={t("mcpCopy")}>
+                  {copied ? <Check size={13} color="var(--color-success)" /> : <Copy size={13} />}
+                </button>
+              )}
+            </div>
+            <div style={{ ...hint, color: fresh ? "var(--color-warning)" : undefined }}>{fresh ? t("tokenShownOnce") : t("tokenHiddenHint")}</div>
+          </>
         ) : (
           <div style={hint}>{t("apiKeyNotConfigured")}</div>
         )}
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          {token ? (
+          {fresh || display ? (
             <>
               <button style={btn} onClick={rotate} disabled={busy}>
                 <RefreshCw size={13} /> {t("extTokenRegen")}
@@ -180,14 +207,13 @@ export default function ExtensionTokenCard() {
         </div>
         {/* Additional i18n key (extIdsHint, listed in the N11 report): shows the key itself
             until R's locale pass — same convention as notifyChErr_invalid_value in T3. */}
-        <div style={hint}>{t("extIdsHint" as never)}</div>
+        <div style={hint}>{t("extIdsHint")}</div>
       </div>
 
-      {/* ── install instructions ──────────────────────────────────────────────── */}
+      {/* ── updating ──────────────────────────────────────────────────────────── */}
       <details style={{ fontSize: "13px" }}>
-        <summary style={{ ...label, cursor: "pointer" }}>{t("extHowTo")}</summary>
-        {/* Additional i18n key (extHowToSteps, listed in the N11 report). */}
-        <div style={{ ...hint, marginTop: "6px", whiteSpace: "pre-line" }}>{t("extHowToSteps" as never)}</div>
+        <summary style={{ ...label, cursor: "pointer" }}>{t("extUpdateTitle")}</summary>
+        <div style={{ ...hint, marginTop: "6px", whiteSpace: "pre-line" }}>{t("extUpdateSteps")}</div>
       </details>
 
       {error && <div style={{ ...hint, color: "var(--color-danger)" }}>{error}</div>}

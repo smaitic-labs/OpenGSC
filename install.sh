@@ -192,6 +192,16 @@ else
   DB_PATH="$(pwd)/data/prod.db"
   mkdir -p "$(pwd)/data"
 
+  # Which request header carries the real client address (login and widget rate limits). Behind the
+  # nginx this script configures, X-Real-IP is written by nginx and cannot be forged. Without nginx
+  # the app port faces the internet and every header is client-controlled, so none is trusted.
+  # Behind a Cloudflare Tunnel instead, change it to cf-connecting-ip. See src/lib/security/clientIp.ts.
+  if [[ "${INSTALL_NGINX^^}" == "Y" ]]; then
+    CLIENT_IP_HEADER="x-real-ip"
+  else
+    CLIENT_IP_HEADER="none"
+  fi
+
   cat > .env <<EOF
 DATABASE_URL="file:${DB_PATH}"
 
@@ -203,6 +213,9 @@ NEXTAUTH_URL="${NEXTAUTH_URL}"
 # Redirect URI: ${NEXTAUTH_URL}/api/auth/callback/google
 GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}"
 GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}"
+
+# Trusted client-IP header: cf-connecting-ip | x-real-ip | x-forwarded-for | none
+OPENGSC_CLIENT_IP_HEADER="${CLIENT_IP_HEADER}"
 EOF
 
   success ".env created (NEXTAUTH_URL=${NEXTAUTH_URL})"
@@ -264,9 +277,17 @@ if [[ "${INSTALL_NGINX^^}" == "Y" ]]; then
   NGINX_CONF="/etc/nginx/sites-available/opengsc"
 
   cat > "$NGINX_CONF" <<EOF
+# Access log without query strings: credentials travel there (?token= for Claude Desktop connector
+# links, ?shareToken= for guest dashboards) and must not be written to disk. Referer is left out
+# for the same reason — it repeats the previous page's full URL.
+log_format opengsc_noquery '\$remote_addr - \$remote_user [\$time_local] "\$request_method \$uri \$server_protocol" '
+                           '\$status \$body_bytes_sent "\$http_user_agent"';
+
 server {
     listen 80;
     server_name ${DOMAIN};
+
+    access_log /var/log/nginx/access.log opengsc_noquery;
 
     client_max_body_size 10M;
 
@@ -277,6 +298,8 @@ server {
         proxy_set_header   Connection 'upgrade';
         proxy_set_header   Host \$host;
         proxy_set_header   X-Real-IP \$remote_addr;
+        # The app may be told to trust CF-Connecting-IP; a client must not be able to send it through here.
+        proxy_set_header   CF-Connecting-IP "";
         proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header   X-Forwarded-Proto \$scheme;
         proxy_cache_bypass \$http_upgrade;
