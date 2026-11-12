@@ -5,7 +5,7 @@ dockerImagePipeline(
     app: "opengsc",
     service: "opengsc",
     dockerfile: "Dockerfile",
-    mainBranch: "main",
+    mainBranch: "master",
     cluster: "svpl-engineering",
     k8sDeploy: false,
     slackChannel: "#devops"
